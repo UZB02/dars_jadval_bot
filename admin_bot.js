@@ -1,36 +1,22 @@
-// admin_bot.js
 import TelegramBot from "node-telegram-bot-api";
 import fs from "fs";
 import path from "path";
 import fetch from "node-fetch";
-import mongoose from "mongoose";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// ==== MongoDB ulanish ====
-mongoose
-  .connect("mongodb://127.0.0.1:27017/schoolBot", {
-    useNewUrlParser: true,
-    useUnifiedTopology: true,
-  })
-  .then(() => console.log("✅ MongoDB ulandi (Admin Bot)"))
-  .catch((err) => console.error("❌ MongoDB ulanish xatosi:", err));
+// ==== Bot tokeni va upload papkasi .env dan ====
+const token = process.env.ADMIN_BOT_TOKEN;
+const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || "uploads");
 
-// ==== MongoDB Schema ====
-const classSchema = new mongoose.Schema({
-  name: { type: String, required: true, unique: true },
-  schedule: { type: String }, // endi faqat bitta rasm yo‘li
-});
-const ClassModel = mongoose.model("Class", classSchema);
-
-// ==== Bot ====
-const token = "8426561809:AAG7EeGTlKZB5kUGRghPb4FU5OgQqaDo4Gs";
 const bot = new TelegramBot(token, { polling: true });
 
-// Fayl yo‘llari
-const uploadDir = path.join(__dirname, "uploads");
+// Upload papkasi mavjudligini tekshirish
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 // Admin state
@@ -57,33 +43,32 @@ bot.onText(/\/start/, (msg) => {
 
 // Inline tugmalar bilan mavjud sinflarni ko‘rsatish
 async function showClassList(chatId) {
-  const classes = await ClassModel.find();
-  if (!classes.length) {
+  const files = fs.readdirSync(uploadDir).filter((f) => !f.startsWith("."));
+  if (!files.length) {
     return bot.sendMessage(chatId, "❌ Hali hech qanday sinf mavjud emas.", {
       reply_markup: mainKeyboard(),
     });
   }
 
-  for (let cls of classes) {
+  for (let file of files) {
+    const className = path.parse(file).name; // fayl nomidan sinf nomini olish
     const inlineButtons = [
-      { text: "Ko‘rish", callback_data: `view_${cls.name}` },
-      { text: "Tahrirlash", callback_data: `edit_${cls.name}` },
-      { text: "O‘chirish", callback_data: `delete_${cls.name}` },
+      { text: "Ko‘rish", callback_data: `view_${className}` },
+      { text: "O‘chirish", callback_data: `delete_${className}` },
     ];
 
-    bot.sendMessage(chatId, `📘 ${cls.name}`, {
+    bot.sendMessage(chatId, `📘 ${className}`, {
       reply_markup: { inline_keyboard: [inlineButtons] },
     });
   }
 }
 
-// === Bitta message listener ===
+// === Message listener ===
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
   const state = adminStates[chatId];
 
-  // === State bo‘lmasa: asosiy tugmalar ===
   if (!state) {
     if (text === "Sinf qo'shish") {
       adminStates[chatId] = { step: "awaiting_class" };
@@ -101,7 +86,7 @@ bot.on("message", async (msg) => {
     return;
   }
 
-  // === Orqaga tugmasi ===
+  // Orqaga tugmasi
   if (text === "Orqaga") {
     delete adminStates[chatId];
     return bot.sendMessage(chatId, "📌 Asosiy menyu:", {
@@ -109,18 +94,19 @@ bot.on("message", async (msg) => {
     });
   }
 
-  // === Yangi sinf qo‘shish ===
+  // Yangi sinf qo‘shish
   if (state.step === "awaiting_class" && text) {
     const className = text.trim();
-    const exists = await ClassModel.findOne({ name: className });
-    if (exists) {
+    const existingFile = fs
+      .readdirSync(uploadDir)
+      .find((f) => path.parse(f).name === className);
+    if (existingFile) {
       delete adminStates[chatId];
       return bot.sendMessage(chatId, "❌ Bu sinf allaqachon mavjud.", {
         reply_markup: mainKeyboard(),
       });
     }
 
-    await ClassModel.create({ name: className, schedule: "" });
     adminStates[chatId] = { step: "awaiting_image", className };
     return bot.sendMessage(
       chatId,
@@ -129,35 +115,7 @@ bot.on("message", async (msg) => {
     );
   }
 
-  // === Tahrirlash nomini qabul qilish ===
-  if (state.step === "edit_class" && text) {
-    const oldName = state.oldName;
-    const exists = await ClassModel.findOne({ name: text.trim() });
-    if (exists) {
-      return bot.sendMessage(
-        chatId,
-        "❌ Bunday nomli sinf allaqachon mavjud.",
-        { reply_markup: mainKeyboard() }
-      );
-    }
-
-    const cls = await ClassModel.findOne({ name: oldName });
-    if (!cls)
-      return bot.sendMessage(chatId, "❌ Sinf topilmadi.", {
-        reply_markup: mainKeyboard(),
-      });
-
-    cls.name = text.trim();
-    await cls.save();
-    bot.sendMessage(chatId, `✅ Sinf nomi yangilandi: ${cls.name}`, {
-      reply_markup: mainKeyboard(),
-    });
-    delete adminStates[chatId];
-
-    return showClassList(chatId);
-  }
-
-  // === Rasm qabul qilish ===
+  // Rasm qabul qilish
   if (state.step === "awaiting_image" && msg.photo) {
     const photoId = msg.photo[msg.photo.length - 1].file_id;
     const file = await bot.getFile(photoId);
@@ -172,11 +130,7 @@ bot.on("message", async (msg) => {
         const dest = fs.createWriteStream(savePath);
         res.body.pipe(dest);
 
-        dest.on("finish", async () => {
-          const cls = await ClassModel.findOne({ name: state.className });
-          cls.schedule = savePath; // endi faqat bitta rasm
-          await cls.save();
-
+        dest.on("finish", () => {
           bot.sendMessage(
             chatId,
             `✅ ${state.className} jadval rasm saqlandi!`,
@@ -194,69 +148,37 @@ bot.on("message", async (msg) => {
   }
 });
 
-// === Callback query handler ===
+// Callback query handler
 bot.on("callback_query", async (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
-  const state = adminStates[chatId] || {};
 
-  // === Sinfni ko‘rsatish ===
   if (data.startsWith("view_")) {
     const className = data.split("_")[1];
-    const cls = await ClassModel.findOne({ name: className });
-    if (!cls)
-      return bot.sendMessage(chatId, "❌ Sinf topilmadi.", {
-        reply_markup: mainKeyboard(),
-      });
-
-    if (!cls.schedule || !fs.existsSync(cls.schedule)) {
+    const files = fs.readdirSync(uploadDir);
+    const fileName = files.find((f) => path.parse(f).name === className);
+    if (!fileName)
       return bot.sendMessage(
         chatId,
-        `❌ ${className} sinfi uchun hali jadval mavjud emas.`,
-        { reply_markup: mainKeyboard() }
+        `❌ ${className} sinfi uchun jadval mavjud emas.`
       );
-    }
 
-    bot.sendPhoto(chatId, fs.createReadStream(cls.schedule), {
+    const filePath = path.join(uploadDir, fileName);
+    bot.sendPhoto(chatId, fs.createReadStream(filePath), {
       caption: `${className} sinfi jadvali`,
       reply_markup: mainKeyboard(),
     });
   }
 
-  // === Sinfni tahrirlash ===
-  if (data.startsWith("edit_")) {
-    const className = data.split("_")[1];
-    adminStates[chatId] = { step: "edit_class", oldName: className };
-    bot.sendMessage(
-      chatId,
-      `✏️ ${className} nomini yangilash uchun yangi nomni kiriting:`,
-      { reply_markup: mainKeyboard() }
-    );
-  }
-
-  // === Sinfni o‘chirish ===
   if (data.startsWith("delete_")) {
     const className = data.split("_")[1];
-    const cls = await ClassModel.findOne({ name: className });
-    if (!cls)
-      return bot.sendMessage(chatId, "❌ Sinf topilmadi.", {
-        reply_markup: mainKeyboard(),
-      });
-
-    if (cls.schedule && fs.existsSync(cls.schedule))
-      fs.unlinkSync(cls.schedule);
-    await cls.deleteOne();
+    const files = fs.readdirSync(uploadDir);
+    const fileName = files.find((f) => path.parse(f).name === className);
+    if (fileName) fs.unlinkSync(path.join(uploadDir, fileName));
     bot.sendMessage(chatId, `✅ ${className} sinfi o‘chirildi.`, {
       reply_markup: mainKeyboard(),
     });
     showClassList(chatId);
-  }
-
-  // === Orqaga tugmasi ===
-  if (data === "back_to_main" || data === "back_to_class") {
-    bot.sendMessage(chatId, "📌 Asosiy menyu:", {
-      reply_markup: mainKeyboard(),
-    });
   }
 
   bot.answerCallbackQuery(query.id);

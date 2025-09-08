@@ -2,12 +2,19 @@ import TelegramBot from "node-telegram-bot-api";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
+import dotenv from "dotenv";
+
+dotenv.config();
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-const token = "7998295848:AAEIFbTa5kLUpIbiLJvn_4mT_zBsFj3cBL8";
+const token = process.env.STUDENT_BOT_TOKEN;
+const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || "uploads");
 const bot = new TelegramBot(token, { polling: true });
+
+// Upload papkasi mavjudligini tekshirish
+if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 // Foydalanuvchi holatini saqlash
 let userState = {}; // { chatId: { grade, class } }
@@ -31,27 +38,11 @@ function sendStart(chatId) {
   );
 }
 
-// Inline sinf tanlash
-function sendGradeSelection(chatId) {
-  const inlineKeyboard = [];
-  for (let i = 1; i <= 11; i++) {
-    inlineKeyboard.push([{ text: `${i}-sinf`, callback_data: `class_${i}` }]);
-  }
-  bot.sendMessage(chatId, "Sinfni tanlang:", {
-    reply_markup: {
-      inline_keyboard: inlineKeyboard,
-      resize_keyboard: true,
-      one_time_keyboard: true,
-    },
-  });
-}
-
 // Parallel variantlarni `uploads` papkasidagi fayllardan olish
 function getParallels(selectedGrade) {
-  const classDir = path.join(__dirname, "uploads");
-  if (!fs.existsSync(classDir)) return [];
+  if (!fs.existsSync(uploadDir)) return [];
 
-  const files = fs.readdirSync(classDir);
+  const files = fs.readdirSync(uploadDir);
   const parallelsSet = new Set();
 
   files.forEach((file) => {
@@ -71,8 +62,7 @@ function getParallels(selectedGrade) {
 
 // Jadvalni yuborish funksiyasi
 function sendClassSchedule(chatId, selectedClass) {
-  const classDir = path.join(__dirname, "uploads");
-  if (!fs.existsSync(classDir)) {
+  if (!fs.existsSync(uploadDir)) {
     bot.sendMessage(
       chatId,
       `❌ ${selectedClass} sinfi uchun rasm papkasi topilmadi.`
@@ -80,13 +70,13 @@ function sendClassSchedule(chatId, selectedClass) {
     return;
   }
 
-  const files = fs.readdirSync(classDir);
+  const files = fs.readdirSync(uploadDir);
   const foundFile = files.find((file) =>
     file.toLowerCase().includes(selectedClass.toLowerCase())
   );
 
   if (foundFile) {
-    const filePath = path.join(classDir, foundFile);
+    const filePath = path.join(uploadDir, foundFile);
     bot.sendPhoto(chatId, fs.createReadStream(filePath), {
       caption: `${selectedClass} sinfi dars jadvali 📅`,
     });
@@ -129,15 +119,9 @@ bot.on("callback_query", (query) => {
     const buttonsInline = [
       parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
     ];
-    const buttonsKeyboard = [parallels, ["Orqaga"]];
 
     bot.sendMessage(chatId, "Qaysi parallel?", {
-      reply_markup: {
-        inline_keyboard: buttonsInline,
-        keyboard: buttonsKeyboard,
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      },
+      reply_markup: { inline_keyboard: buttonsInline },
     });
   }
 
@@ -164,20 +148,14 @@ bot.on("message", (msg) => {
       const buttonsInline = [
         parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
       ];
-      const buttonsKeyboard = [parallels, ["Orqaga"]];
 
       bot.sendMessage(chatId, "Qaysi parallel?", {
-        reply_markup: {
-          inline_keyboard: buttonsInline,
-          keyboard: buttonsKeyboard,
-          resize_keyboard: true,
-          one_time_keyboard: true,
-        },
+        reply_markup: { inline_keyboard: buttonsInline },
       });
       delete userState[chatId].class;
       return;
     } else if (userState[chatId]?.grade) {
-      sendGradeSelection(chatId);
+      sendStart(chatId);
       delete userState[chatId].grade;
       return;
     }
@@ -201,15 +179,9 @@ bot.on("message", (msg) => {
     const buttonsInline = [
       parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
     ];
-    const buttonsKeyboard = [parallels, ["Orqaga"]];
 
     bot.sendMessage(chatId, "Qaysi parallel?", {
-      reply_markup: {
-        inline_keyboard: buttonsInline,
-        keyboard: buttonsKeyboard,
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      },
+      reply_markup: { inline_keyboard: buttonsInline },
     });
     return;
   }
