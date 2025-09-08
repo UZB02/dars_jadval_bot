@@ -1,10 +1,26 @@
-// index.js
-import("./admin_bot.js")
-  .then(() => console.log("✅ Admin bot ishga tushdi"))
-  .catch((err) => console.error("❌ Admin botda xatolik:", err));
+import express from "express";
+import dotenv from "dotenv";
 
-import("./student_bot.js")
-  .then(() => console.log("✅ Student bot ishga tushdi"))
-  .catch((err) => console.error("❌ Student botda xatolik:", err));
+dotenv.config();
 
-console.log("🚀 Ikkala bot ham ishga tushirilmoqda...");
+import { adminBotApp } from "./admin_bot.js";
+import { studentBotApp } from "./student_bot.js";
+
+const app = express();
+const PORT = process.env.PORT || 3000;
+
+app.use(express.json());
+
+// Admin bot webhook
+app.use("/admin_bot", adminBotApp);
+
+// Student bot webhook
+app.use("/student_bot", studentBotApp);
+
+app.get("/", (req, res) => {
+  res.send("📌 Bot server ishlayapti!");
+});
+
+app.listen(PORT, () => {
+  console.log(`🚀 Server port ${PORT} da ishlayapti`);
+});

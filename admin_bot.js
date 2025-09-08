@@ -1,4 +1,6 @@
+// admin_bot.js
 import TelegramBot from "node-telegram-bot-api";
+import express from "express";
 import fs from "fs";
 import path from "path";
 import fetch from "node-fetch";
@@ -14,7 +16,9 @@ const __dirname = path.dirname(__filename);
 const token = process.env.ADMIN_BOT_TOKEN;
 const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || "uploads");
 
-const bot = new TelegramBot(token, { polling: true });
+// Telegram botni webhook bilan ishga tushiramiz
+const bot = new TelegramBot(token);
+bot.setWebHook(`${process.env.WEBHOOK_URL}/admin_bot/webhook`);
 
 // Upload papkasi mavjudligini tekshirish
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
@@ -31,16 +35,6 @@ function mainKeyboard() {
   };
 }
 
-// /start buyrug‘i
-bot.onText(/\/start/, (msg) => {
-  const chatId = msg.chat.id;
-  bot.sendMessage(
-    chatId,
-    "📌 Admin panelga xush kelibsiz!\n\nPastdagi tugmalardan foydalaning:",
-    { reply_markup: mainKeyboard() }
-  );
-});
-
 // Inline tugmalar bilan mavjud sinflarni ko‘rsatish
 async function showClassList(chatId) {
   const files = fs.readdirSync(uploadDir).filter((f) => !f.startsWith("."));
@@ -51,7 +45,7 @@ async function showClassList(chatId) {
   }
 
   for (let file of files) {
-    const className = path.parse(file).name; // fayl nomidan sinf nomini olish
+    const className = path.parse(file).name;
     const inlineButtons = [
       { text: "Ko‘rish", callback_data: `view_${className}` },
       { text: "O‘chirish", callback_data: `delete_${className}` },
@@ -63,7 +57,26 @@ async function showClassList(chatId) {
   }
 }
 
-// === Message listener ===
+// Express router yaratamiz (webhook uchun)
+export const adminBotApp = express.Router();
+adminBotApp.use(express.json());
+
+adminBotApp.post("/webhook", (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
+
+// /start buyrug‘i
+bot.onText(/\/start/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(
+    chatId,
+    "📌 Admin panelga xush kelibsiz!\n\nPastdagi tugmalardan foydalaning:",
+    { reply_markup: mainKeyboard() }
+  );
+});
+
+// Message listener
 bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;

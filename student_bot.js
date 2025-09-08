@@ -1,4 +1,6 @@
+// student_bot.js
 import TelegramBot from "node-telegram-bot-api";
+import express from "express";
 import fs from "fs";
 import path from "path";
 import { fileURLToPath } from "url";
@@ -11,7 +13,10 @@ const __dirname = path.dirname(__filename);
 
 const token = process.env.STUDENT_BOT_TOKEN;
 const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || "uploads");
-const bot = new TelegramBot(token, { polling: true });
+
+// Telegram botni webhook bilan ishga tushiramiz
+const bot = new TelegramBot(token);
+bot.setWebHook(`${process.env.WEBHOOK_URL}/student_bot/webhook`);
 
 // Upload papkasi mavjudligini tekshirish
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
@@ -87,6 +92,15 @@ function sendClassSchedule(chatId, selectedClass) {
     );
   }
 }
+
+// Express router yaratamiz (webhook uchun)
+export const studentBotApp = express.Router();
+studentBotApp.use(express.json());
+
+studentBotApp.post("/webhook", (req, res) => {
+  bot.processUpdate(req.body);
+  res.sendStatus(200);
+});
 
 // Foydalanuvchi birinchi marta kirsa start
 bot.on("message", (msg) => {
