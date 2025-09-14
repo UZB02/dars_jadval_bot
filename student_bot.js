@@ -22,31 +22,42 @@ bot.setWebHook(`${process.env.WEBHOOK_URL}/student_bot/webhook`);
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
 // Foydalanuvchi holatini saqlash
-let userState = {}; // { chatId: { grade, class } }
+const userState = {}; // { chatId: { grade, class } }
 
-// Start funksiyasi
+// ====== Tugmalar ======
+function startKeyboard() {
+  return {
+    keyboard: [
+      ["1-sinf", "2-sinf", "3-sinf", "4-sinf"],
+      ["5-sinf", "6-sinf", "7-sinf", "8-sinf"],
+      ["9-sinf", "10-sinf", "11-sinf"],
+    ],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+  };
+}
+
+function backKeyboard() {
+  return {
+    keyboard: [["Orqaga"]],
+    resize_keyboard: true,
+    one_time_keyboard: true,
+  };
+}
+
+// ====== Start funksiyasi ======
 function sendStart(chatId) {
+  userState[chatId] = {}; // foydalanuvchi holatini boshlash
   bot.sendMessage(
     chatId,
     "Assalomu alaykum! 📚\nDars jadvalini olish uchun sinfni tanlang:",
-    {
-      reply_markup: {
-        keyboard: [
-          ["1-sinf", "2-sinf", "3-sinf", "4-sinf"],
-          ["5-sinf", "6-sinf", "7-sinf", "8-sinf"],
-          ["9-sinf", "10-sinf", "11-sinf"],
-        ],
-        resize_keyboard: true,
-        one_time_keyboard: true,
-      },
-    }
+    { reply_markup: startKeyboard() }
   );
 }
 
-// Parallel variantlarni `uploads` papkasidagi fayllardan olish
+// ====== Parallel variantlarni olish ======
 function getParallels(selectedGrade) {
   if (!fs.existsSync(uploadDir)) return [];
-
   const files = fs.readdirSync(uploadDir);
   const parallelsSet = new Set();
 
@@ -65,13 +76,10 @@ function getParallels(selectedGrade) {
   return Array.from(parallelsSet);
 }
 
-// Jadvalni yuborish funksiyasi
+// ====== Jadvalni yuborish ======
 function sendClassSchedule(chatId, selectedClass) {
   if (!fs.existsSync(uploadDir)) {
-    bot.sendMessage(
-      chatId,
-      `❌ ${selectedClass} sinfi uchun rasm papkasi topilmadi.`
-    );
+    bot.sendMessage(chatId, `❌ ${selectedClass} sinfi uchun papka topilmadi.`);
     return;
   }
 
@@ -84,16 +92,20 @@ function sendClassSchedule(chatId, selectedClass) {
     const filePath = path.join(uploadDir, foundFile);
     bot.sendPhoto(chatId, fs.createReadStream(filePath), {
       caption: `${selectedClass} sinfi dars jadvali 📅`,
+      reply_markup: backKeyboard(),
     });
   } else {
     bot.sendMessage(
       chatId,
-      `❌ ${selectedClass} sinfi uchun jadval topilmadi.`
+      `❌ ${selectedClass} sinfi uchun jadval topilmadi.`,
+      {
+        reply_markup: backKeyboard(),
+      }
     );
   }
 }
 
-// Express router yaratamiz (webhook uchun)
+// ====== Webhook ======
 export const studentBotApp = express.Router();
 studentBotApp.use(express.json());
 
@@ -102,45 +114,17 @@ studentBotApp.post("/webhook", (req, res) => {
   res.sendStatus(200);
 });
 
-// Foydalanuvchi birinchi marta kirsa start
-bot.on("message", (msg) => {
-  const chatId = msg.chat.id;
-  if (!userState[chatId]) {
-    userState[chatId] = {};
-    sendStart(chatId);
-  }
+// ====== /start buyrug‘i ======
+bot.onText(/\/start/, (msg) => {
+  sendStart(msg.chat.id);
 });
 
-// Callback query handler
+// ====== Callback query handler (inline tugmalar) ======
 bot.on("callback_query", (query) => {
   const chatId = query.message.chat.id;
   const data = query.data;
 
-  // Sinf tanlandi
-  if (data.startsWith("class_")) {
-    const selectedGrade = data.split("_")[1];
-    userState[chatId].grade = selectedGrade;
-
-    const parallels = getParallels(selectedGrade);
-    if (parallels.length === 0) {
-      bot.sendMessage(
-        chatId,
-        `❌ ${selectedGrade} sinfi uchun parallel topilmadi.`
-      );
-      return;
-    }
-
-    const buttonsInline = [
-      parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
-    ];
-
-    bot.sendMessage(chatId, "Qaysi parallel?", {
-      reply_markup: { inline_keyboard: buttonsInline },
-    });
-  }
-
-  // Parallel tanlandi
-  else if (data.startsWith("parallel_")) {
+  if (data.startsWith("parallel_")) {
     const selectedClass = data.split("_")[1];
     userState[chatId].class = selectedClass;
     sendClassSchedule(chatId, selectedClass);
@@ -149,23 +133,28 @@ bot.on("callback_query", (query) => {
   bot.answerCallbackQuery(query.id);
 });
 
-// Reply keyboard handler
+// ====== Message handler (reply keyboard) ======
 bot.on("message", (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
+
+  if (text === "/start") return; // /start alohida ishlaydi
 
   // Orqaga tugmasi
   if (text === "Orqaga") {
     if (userState[chatId]?.class) {
       const grade = userState[chatId].grade;
       const parallels = getParallels(grade);
-      const buttonsInline = [
-        parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
-      ];
-
-      bot.sendMessage(chatId, "Qaysi parallel?", {
-        reply_markup: { inline_keyboard: buttonsInline },
-      });
+      if (parallels.length > 0) {
+        const buttonsInline = [
+          parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
+        ];
+        bot.sendMessage(chatId, "Qaysi parallel?", {
+          reply_markup: { inline_keyboard: buttonsInline },
+        });
+      } else {
+        sendStart(chatId);
+      }
       delete userState[chatId].class;
       return;
     } else if (userState[chatId]?.grade) {
@@ -185,7 +174,8 @@ bot.on("message", (msg) => {
     if (parallels.length === 0) {
       bot.sendMessage(
         chatId,
-        `❌ ${selectedGrade} sinfi uchun parallel topilmadi.`
+        `❌ ${selectedGrade} sinfi uchun parallel topilmadi.`,
+        { reply_markup: backKeyboard() }
       );
       return;
     }
@@ -193,7 +183,6 @@ bot.on("message", (msg) => {
     const buttonsInline = [
       parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
     ];
-
     bot.sendMessage(chatId, "Qaysi parallel?", {
       reply_markup: { inline_keyboard: buttonsInline },
     });
@@ -201,7 +190,7 @@ bot.on("message", (msg) => {
   }
 
   // Parallel tanlash (reply keyboard)
-  const parallelMatch = text.match(/^(\d+)(Green|Blue)$/);
+  const parallelMatch = text.match(/^(\d+)(\w+)$/);
   if (parallelMatch) {
     userState[chatId].class = text;
     sendClassSchedule(chatId, text);
