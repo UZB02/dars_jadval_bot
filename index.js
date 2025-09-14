@@ -25,12 +25,12 @@ app.get("/", (req, res) => {
 // 🚀 Auto-ping (Render Free tarifida sleep bo‘lmasligi uchun)
 if (process.env.WEBHOOK_URL) {
   setInterval(() => {
-    fetch(process.env.WEBHOOK_URL)
+    fetch(`${process.env.WEBHOOK_URL}/`) // faqat rootni ping qilamiz
       .then(() =>
         console.log("🔄 Auto-ping yuborildi:", new Date().toLocaleString())
       )
       .catch((err) => console.error("❌ Auto-ping xato:", err));
-  }, 10 * 60 * 1000); // har 14 daqiqada
+  }, 10 * 60 * 1000); // har 10 daqiqada
 }
 
 app.listen(PORT, () => {
