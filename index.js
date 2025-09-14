@@ -30,7 +30,7 @@ if (process.env.WEBHOOK_URL) {
         console.log("🔄 Auto-ping yuborildi:", new Date().toLocaleString())
       )
       .catch((err) => console.error("❌ Auto-ping xato:", err));
-  }, 10 * 60 * 1000); // har 10 daqiqada
+  }, 2 * 60 * 1000); // har 10 daqiqada
 }
 
 app.listen(PORT, () => {
