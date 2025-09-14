@@ -1,4 +1,3 @@
-// student_bot.js
 import TelegramBot from "node-telegram-bot-api";
 import express from "express";
 import fs from "fs";
@@ -16,12 +15,11 @@ const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || "uploads");
 
 // Telegram botni webhook bilan ishga tushiramiz
 const bot = new TelegramBot(token);
-bot.setWebHook(`${process.env.WEBHOOK_URL}/student_bot/webhook`);
+bot.setWebHook(`${process.env.WEBHOOK_URL}/student_bot`);
 
-// Upload papkasi mavjudligini tekshirish
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 
-// Foydalanuvchi holatini saqlash
+// Foydalanuvchi holati
 let userState = {}; // { chatId: { grade, class } }
 
 // Start funksiyasi
@@ -43,10 +41,9 @@ function sendStart(chatId) {
   );
 }
 
-// Parallel variantlarni `uploads` papkasidagi fayllardan olish
+// Parallel variantlarni uploads papkasidan olish
 function getParallels(selectedGrade) {
   if (!fs.existsSync(uploadDir)) return [];
-
   const files = fs.readdirSync(uploadDir);
   const parallelsSet = new Set();
 
@@ -65,7 +62,7 @@ function getParallels(selectedGrade) {
   return Array.from(parallelsSet);
 }
 
-// Jadvalni yuborish funksiyasi
+// Jadvalni yuborish
 function sendClassSchedule(chatId, selectedClass) {
   if (!fs.existsSync(uploadDir)) {
     bot.sendMessage(
@@ -93,7 +90,7 @@ function sendClassSchedule(chatId, selectedClass) {
   }
 }
 
-// Express router yaratamiz (webhook uchun)
+// Express router
 export const studentBotApp = express.Router();
 studentBotApp.use(express.json());
 
@@ -102,12 +99,63 @@ studentBotApp.post("/webhook", (req, res) => {
   res.sendStatus(200);
 });
 
-// Foydalanuvchi birinchi marta kirsa start
+// Yagona message handler
 bot.on("message", (msg) => {
   const chatId = msg.chat.id;
-  if (!userState[chatId]) {
+  const text = msg.text;
+
+  // /start yoki yangi foydalanuvchi
+  if (!userState[chatId] || text === "/start") {
     userState[chatId] = {};
-    sendStart(chatId);
+    return sendStart(chatId);
+  }
+
+  // Orqaga tugmasi
+  if (text === "Orqaga") {
+    if (userState[chatId]?.class) {
+      const grade = userState[chatId].grade;
+      const parallels = getParallels(grade);
+      const buttonsInline = [
+        parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
+      ];
+      bot.sendMessage(chatId, "Qaysi parallel?", {
+        reply_markup: { inline_keyboard: buttonsInline },
+      });
+      delete userState[chatId].class;
+      return;
+    } else if (userState[chatId]?.grade) {
+      delete userState[chatId].grade;
+      return sendStart(chatId);
+    }
+  }
+
+  // Sinf tanlash (reply keyboard)
+  const match = text.match(/^(\d+)-sinf$/);
+  if (match) {
+    const selectedGrade = match[1];
+    userState[chatId].grade = selectedGrade;
+
+    const parallels = getParallels(selectedGrade);
+    if (!parallels.length) {
+      return bot.sendMessage(
+        chatId,
+        `❌ ${selectedGrade} sinfi uchun parallel topilmadi.`
+      );
+    }
+
+    const buttonsInline = [
+      parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
+    ];
+    return bot.sendMessage(chatId, "Qaysi parallel?", {
+      reply_markup: { inline_keyboard: buttonsInline },
+    });
+  }
+
+  // Parallel tanlash (reply keyboard)
+  const parallelMatch = text.match(/^(\d+)(Green|Blue)$/);
+  if (parallelMatch) {
+    userState[chatId].class = text;
+    return sendClassSchedule(chatId, text);
   }
 });
 
@@ -122,89 +170,26 @@ bot.on("callback_query", (query) => {
     userState[chatId].grade = selectedGrade;
 
     const parallels = getParallels(selectedGrade);
-    if (parallels.length === 0) {
-      bot.sendMessage(
+    if (!parallels.length)
+      return bot.sendMessage(
         chatId,
         `❌ ${selectedGrade} sinfi uchun parallel topilmadi.`
       );
-      return;
-    }
 
     const buttonsInline = [
       parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
     ];
-
-    bot.sendMessage(chatId, "Qaysi parallel?", {
+    return bot.sendMessage(chatId, "Qaysi parallel?", {
       reply_markup: { inline_keyboard: buttonsInline },
     });
   }
 
   // Parallel tanlandi
-  else if (data.startsWith("parallel_")) {
+  if (data.startsWith("parallel_")) {
     const selectedClass = data.split("_")[1];
     userState[chatId].class = selectedClass;
     sendClassSchedule(chatId, selectedClass);
   }
 
   bot.answerCallbackQuery(query.id);
-});
-
-// Reply keyboard handler
-bot.on("message", (msg) => {
-  const chatId = msg.chat.id;
-  const text = msg.text;
-
-  // Orqaga tugmasi
-  if (text === "Orqaga") {
-    if (userState[chatId]?.class) {
-      const grade = userState[chatId].grade;
-      const parallels = getParallels(grade);
-      const buttonsInline = [
-        parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
-      ];
-
-      bot.sendMessage(chatId, "Qaysi parallel?", {
-        reply_markup: { inline_keyboard: buttonsInline },
-      });
-      delete userState[chatId].class;
-      return;
-    } else if (userState[chatId]?.grade) {
-      sendStart(chatId);
-      delete userState[chatId].grade;
-      return;
-    }
-  }
-
-  // Sinf tanlash (reply keyboard)
-  const match = text.match(/^(\d+)-sinf$/);
-  if (match) {
-    const selectedGrade = match[1];
-    userState[chatId].grade = selectedGrade;
-
-    const parallels = getParallels(selectedGrade);
-    if (parallels.length === 0) {
-      bot.sendMessage(
-        chatId,
-        `❌ ${selectedGrade} sinfi uchun parallel topilmadi.`
-      );
-      return;
-    }
-
-    const buttonsInline = [
-      parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
-    ];
-
-    bot.sendMessage(chatId, "Qaysi parallel?", {
-      reply_markup: { inline_keyboard: buttonsInline },
-    });
-    return;
-  }
-
-  // Parallel tanlash (reply keyboard)
-  const parallelMatch = text.match(/^(\d+)(Green|Blue)$/);
-  if (parallelMatch) {
-    userState[chatId].class = text;
-    sendClassSchedule(chatId, text);
-    return;
-  }
 });

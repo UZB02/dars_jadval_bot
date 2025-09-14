@@ -18,6 +18,7 @@ app.use("/admin_bot", adminBotApp);
 // Student bot webhook
 app.use("/student_bot", studentBotApp);
 
+// Root route
 app.get("/", (req, res) => {
   res.send("📌 Bot server ishlayapti!");
 });
@@ -25,14 +26,15 @@ app.get("/", (req, res) => {
 // 🚀 Auto-ping (Render Free tarifida sleep bo‘lmasligi uchun)
 if (process.env.WEBHOOK_URL) {
   setInterval(() => {
-    fetch(`${process.env.WEBHOOK_URL}/`) // faqat rootni ping qilamiz
+    fetch(`${process.env.WEBHOOK_URL}/`)
       .then(() =>
         console.log("🔄 Auto-ping yuborildi:", new Date().toLocaleString())
       )
       .catch((err) => console.error("❌ Auto-ping xato:", err));
-  }, 2 * 60 * 1000); // har 10 daqiqada
+  }, 10 * 60 * 1000); // har 10 daqiqada
 }
 
+// Serverni ishga tushirish
 app.listen(PORT, () => {
   console.log(`🚀 Server port ${PORT} da ishlayapti`);
 });
