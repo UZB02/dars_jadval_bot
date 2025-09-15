@@ -24,6 +24,45 @@ if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
 // Foydalanuvchi holatini saqlash
 const userState = {}; // { chatId: { grade, class } }
 
+// ====== Foydalanuvchilarni saqlash ======
+const usersFile = path.join(__dirname, "users.json");
+let users = [];
+
+// Fayl mavjud bo'lsa yuklab olish
+if (fs.existsSync(usersFile)) {
+  users = JSON.parse(fs.readFileSync(usersFile, "utf-8"));
+}
+
+// Foydalanuvchi qo‘shish yoki yangilash funksiyasi
+function addOrUpdateUser(msg) {
+  const chatId = msg.chat.id;
+  const firstName = msg.from.first_name || "";
+  const lastName = msg.from.last_name || "";
+  const now = new Date().toISOString();
+
+  const index = users.findIndex((u) => u.chatId === chatId);
+  if (index !== -1) {
+    // Foydalanuvchi mavjud, yangilash
+    users[index] = {
+      chatId,
+      firstName,
+      lastName,
+      lastStart: now,
+    };
+  } else {
+    // Yangi foydalanuvchi qo‘shish
+    users.push({
+      chatId,
+      firstName,
+      lastName,
+      joinedAt: now,
+      lastStart: now,
+    });
+  }
+
+  fs.writeFileSync(usersFile, JSON.stringify(users, null, 2));
+}
+
 // ====== Tugmalar ======
 function startKeyboard() {
   return {
@@ -98,9 +137,7 @@ function sendClassSchedule(chatId, selectedClass) {
     bot.sendMessage(
       chatId,
       `❌ ${selectedClass} sinfi uchun jadval topilmadi.`,
-      {
-        reply_markup: backKeyboard(),
-      }
+      { reply_markup: backKeyboard() }
     );
   }
 }
@@ -116,7 +153,14 @@ studentBotApp.post("/webhook", (req, res) => {
 
 // ====== /start buyrug‘i ======
 bot.onText(/\/start/, (msg) => {
+  addOrUpdateUser(msg); // foydalanuvchi saqlash/yangilash
   sendStart(msg.chat.id);
+});
+
+// ====== /stats komandasi ======
+bot.onText(/\/stats/, (msg) => {
+  const chatId = msg.chat.id;
+  bot.sendMessage(chatId, `Hozircha foydalanuvchilar soni: ${users.length}`);
 });
 
 // ====== Callback query handler (inline tugmalar) ======
