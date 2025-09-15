@@ -40,23 +40,23 @@ function addOrUpdateUser(msg) {
   const lastName = msg.from.last_name || "";
   const now = new Date().toISOString();
 
-  const index = users.findIndex((u) => u.chatId === chatId);
+  const index = users.findIndex(u => u.chatId === chatId);
   if (index !== -1) {
     // Foydalanuvchi mavjud, yangilash
-    users[index] = {
-      chatId,
-      firstName,
-      lastName,
-      lastStart: now,
+    users[index] = { 
+      chatId, 
+      firstName, 
+      lastName, 
+      lastStart: now 
     };
   } else {
     // Yangi foydalanuvchi qo‘shish
-    users.push({
-      chatId,
-      firstName,
-      lastName,
-      joinedAt: now,
-      lastStart: now,
+    users.push({ 
+      chatId, 
+      firstName, 
+      lastName, 
+      joinedAt: now, 
+      lastStart: now 
     });
   }
 
@@ -184,21 +184,26 @@ bot.on("message", (msg) => {
 
   if (text === "/start") return; // /start alohida ishlaydi
 
-  // === Orqaga tugmasi ===
+  // Orqaga tugmasi
   if (text === "Orqaga") {
     if (userState[chatId]?.class) {
-      // Agar parallel tanlangan bo‘lsa → uni bekor qilamiz va sinf tanlashga qaytamiz
+      const grade = userState[chatId].grade;
+      const parallels = getParallels(grade);
+      if (parallels.length > 0) {
+        const buttonsInline = [
+          parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
+        ];
+        bot.sendMessage(chatId, "Qaysi parallel?", {
+          reply_markup: { inline_keyboard: buttonsInline },
+        });
+      } else {
+        sendStart(chatId);
+      }
       delete userState[chatId].class;
-      sendGradeSelection(chatId);
       return;
     } else if (userState[chatId]?.grade) {
-      // Agar faqat sinf tanlangan bo‘lsa → uni ham bekor qilib, sinf tanlashga qaytamiz
+      sendStart(chatId);
       delete userState[chatId].grade;
-      sendGradeSelection(chatId);
-      return;
-    } else {
-      // Agar hech narsa tanlanmagan bo‘lsa → shunchaki sinf tanlash menyusini ko‘rsatamiz
-      sendGradeSelection(chatId);
       return;
     }
   }
