@@ -15,6 +15,7 @@ const __dirname = path.dirname(__filename);
 // ==== Bot tokeni va upload papkasi .env dan ====
 const token = process.env.ADMIN_BOT_TOKEN;
 const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || "uploads");
+const usersFile = path.join(__dirname, "users.json"); // foydalanuvchilar saqlanadigan fayl
 
 // Telegram botni webhook bilan ishga tushiramiz
 const bot = new TelegramBot(token);
@@ -22,6 +23,16 @@ bot.setWebHook(`${process.env.WEBHOOK_URL}/admin_bot/webhook`);
 
 // Upload papkasi mavjudligini tekshirish
 if (!fs.existsSync(uploadDir)) fs.mkdirSync(uploadDir);
+
+// Foydalanuvchilarni saqlash
+let users = {};
+if (fs.existsSync(usersFile)) {
+  try {
+    users = JSON.parse(fs.readFileSync(usersFile, "utf8"));
+  } catch (err) {
+    console.error("users.json o'qishda xato:", err);
+  }
+}
 
 // Admin state
 const adminStates = {};
@@ -33,6 +44,16 @@ function mainKeyboard() {
     resize_keyboard: true,
     one_time_keyboard: false,
   };
+}
+
+// Foydalanuvchi saqlash funksiyasi
+function saveUser(msg) {
+  const chatId = msg.chat.id;
+  const firstName = msg.chat.first_name || "";
+  const lastName = msg.chat.last_name || "";
+
+  users[chatId] = { firstName, lastName }; // mavjud bo'lsa yangilaydi, yo'q bo'lsa qo'shadi
+  fs.writeFileSync(usersFile, JSON.stringify(users, null, 2), "utf8");
 }
 
 // Inline tugmalar bilan mavjud sinflarni ko‘rsatish
@@ -68,6 +89,7 @@ adminBotApp.post("/webhook", (req, res) => {
 
 // /start buyrug‘i
 bot.onText(/\/start/, (msg) => {
+  saveUser(msg); // foydalanuvchini saqlash
   const chatId = msg.chat.id;
   bot.sendMessage(
     chatId,
@@ -81,6 +103,8 @@ bot.on("message", async (msg) => {
   const chatId = msg.chat.id;
   const text = msg.text;
   const state = adminStates[chatId];
+
+  saveUser(msg); // har safar message kelganda foydalanuvchi saqlansin
 
   if (!state) {
     if (text === "Sinf qo'shish") {
