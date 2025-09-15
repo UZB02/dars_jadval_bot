@@ -184,42 +184,18 @@ bot.on("message", (msg) => {
 
   if (text === "/start") return; // /start alohida ishlaydi
 
-  // Orqaga tugmasi
-  if (text === "Orqaga") {
-    if (userState[chatId]?.class) {
-      const grade = userState[chatId].grade;
-      const parallels = getParallels(grade);
-      if (parallels.length > 0) {
-        const buttonsInline = [
-          parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
-        ];
-        bot.sendMessage(chatId, "Qaysi parallel?", {
-          reply_markup: { inline_keyboard: buttonsInline },
-        });
-      } else {
-        sendStart(chatId);
-      }
-      delete userState[chatId].class;
-      return;
-    } else if (userState[chatId]?.grade) {
-      sendStart(chatId);
-      delete userState[chatId].grade;
-      return;
-    }
-  }
-
-  // Sinf tanlash (reply keyboard)
+  // === Sinf tanlash (reply keyboard) ===
   const match = text.match(/^(\d+)-sinf$/);
   if (match) {
     const selectedGrade = match[1];
+    userState[chatId] = userState[chatId] || {};
     userState[chatId].grade = selectedGrade;
 
     const parallels = getParallels(selectedGrade);
     if (parallels.length === 0) {
       bot.sendMessage(
         chatId,
-        `❌ ${selectedGrade} sinfi uchun parallel topilmadi.`,
-        { reply_markup: backKeyboard() }
+        `❌ ${selectedGrade} sinfi uchun parallel topilmadi.`
       );
       return;
     }
@@ -233,11 +209,13 @@ bot.on("message", (msg) => {
     return;
   }
 
-  // Parallel tanlash (reply keyboard)
+  // === Parallel tanlash (reply keyboard) ===
   const parallelMatch = text.match(/^(\d+)(\w+)$/);
   if (parallelMatch) {
+    userState[chatId] = userState[chatId] || {};
     userState[chatId].class = text;
     sendClassSchedule(chatId, text);
     return;
   }
 });
+
