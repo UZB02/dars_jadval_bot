@@ -40,23 +40,23 @@ function addOrUpdateUser(msg) {
   const lastName = msg.from.last_name || "";
   const now = new Date().toISOString();
 
-  const index = users.findIndex(u => u.chatId === chatId);
+  const index = users.findIndex((u) => u.chatId === chatId);
   if (index !== -1) {
     // Foydalanuvchi mavjud, yangilash
-    users[index] = { 
-      chatId, 
-      firstName, 
-      lastName, 
-      lastStart: now 
+    users[index] = {
+      chatId,
+      firstName,
+      lastName,
+      lastStart: now,
     };
   } else {
     // Yangi foydalanuvchi qo‘shish
-    users.push({ 
-      chatId, 
-      firstName, 
-      lastName, 
-      joinedAt: now, 
-      lastStart: now 
+    users.push({
+      chatId,
+      firstName,
+      lastName,
+      joinedAt: now,
+      lastStart: now,
     });
   }
 
@@ -71,14 +71,6 @@ function startKeyboard() {
       ["5-sinf", "6-sinf", "7-sinf", "8-sinf"],
       ["9-sinf", "10-sinf", "11-sinf"],
     ],
-    resize_keyboard: true,
-    one_time_keyboard: true,
-  };
-}
-
-function backKeyboard() {
-  return {
-    keyboard: [["Orqaga"]],
     resize_keyboard: true,
     one_time_keyboard: true,
   };
@@ -131,13 +123,11 @@ function sendClassSchedule(chatId, selectedClass) {
     const filePath = path.join(uploadDir, foundFile);
     bot.sendPhoto(chatId, fs.createReadStream(filePath), {
       caption: `${selectedClass} sinfi dars jadvali 📅`,
-      reply_markup: backKeyboard(),
     });
   } else {
     bot.sendMessage(
       chatId,
-      `❌ ${selectedClass} sinfi uchun jadval topilmadi.`,
-      { reply_markup: backKeyboard() }
+      `❌ ${selectedClass} sinfi uchun jadval topilmadi.`
     );
   }
 }
@@ -218,4 +208,3 @@ bot.on("message", (msg) => {
     return;
   }
 });
-
