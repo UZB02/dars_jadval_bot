@@ -187,18 +187,7 @@ bot.on("message", (msg) => {
   // Orqaga tugmasi
   if (text === "Orqaga") {
     if (userState[chatId]?.class) {
-      const grade = userState[chatId].grade;
-      const parallels = getParallels(grade);
-      if (parallels.length > 0) {
-        const buttonsInline = [
-          parallels.map((p) => ({ text: p, callback_data: `parallel_${p}` })),
-        ];
-        bot.sendMessage(chatId, "Qaysi parallel?", {
-          reply_markup: { inline_keyboard: buttonsInline },
-        });
-      } else {
         sendStart(chatId);
-      }
       delete userState[chatId].class;
       return;
     } else if (userState[chatId]?.grade) {
