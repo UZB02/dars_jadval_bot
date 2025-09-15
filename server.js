@@ -5,7 +5,13 @@ import dotenv from "dotenv";
 
 dotenv.config();
 
+import cors from "cors";
+
+
+
+
 const app = express();
+app.use(cors()); // 🔹 Shu qator CORS ruxsat beradi
 const PORT = process.env.PORT || 3000;
 const usersFile = path.join(process.cwd(), "users.json");
 
