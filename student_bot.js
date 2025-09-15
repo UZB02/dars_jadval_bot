@@ -184,15 +184,21 @@ bot.on("message", (msg) => {
 
   if (text === "/start") return; // /start alohida ishlaydi
 
-  // Orqaga tugmasi
+  // === Orqaga tugmasi ===
   if (text === "Orqaga") {
     if (userState[chatId]?.class) {
-        sendStart(chatId);
+      // Agar parallel tanlangan bo‘lsa → uni bekor qilamiz va sinf tanlashga qaytamiz
       delete userState[chatId].class;
+      sendGradeSelection(chatId);
       return;
     } else if (userState[chatId]?.grade) {
-      sendStart(chatId);
+      // Agar faqat sinf tanlangan bo‘lsa → uni ham bekor qilib, sinf tanlashga qaytamiz
       delete userState[chatId].grade;
+      sendGradeSelection(chatId);
+      return;
+    } else {
+      // Agar hech narsa tanlanmagan bo‘lsa → shunchaki sinf tanlash menyusini ko‘rsatamiz
+      sendGradeSelection(chatId);
       return;
     }
   }
