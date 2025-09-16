@@ -15,7 +15,7 @@ const __dirname = path.dirname(__filename);
 // ==== Bot tokeni va upload papkasi .env dan ====
 const token = process.env.ADMIN_BOT_TOKEN;
 const uploadDir = path.join(__dirname, process.env.UPLOAD_DIR || "uploads");
-const usersFile = path.join(__dirname, "users.json"); // foydalanuvchilar saqlanadigan fayl
+const usersFile = path.join(__dirname, "users.json");
 
 // Telegram botni webhook bilan ishga tushiramiz
 const bot = new TelegramBot(token);
@@ -40,7 +40,7 @@ const adminStates = {};
 // === Doimiy pastki tugmalar ===
 function mainKeyboard() {
   return {
-    keyboard: [["Sinf qo'shish", "Sinflar ro'yxati"]],
+    keyboard: [["Sinf qo'shish", "Sinflar ro'yxati"], ["Orqaga"]],
     resize_keyboard: true,
     one_time_keyboard: false,
   };
@@ -52,11 +52,11 @@ function saveUser(msg) {
   const firstName = msg.chat.first_name || "";
   const lastName = msg.chat.last_name || "";
 
-  users[chatId] = { firstName, lastName }; // mavjud bo'lsa yangilaydi, yo'q bo'lsa qo'shadi
+  users[chatId] = { firstName, lastName };
   fs.writeFileSync(usersFile, JSON.stringify(users, null, 2), "utf8");
 }
 
-// Inline tugmalar bilan mavjud sinflarni ko‘rsatish
+// Inline tugmalar bilan sinflarni ko‘rsatish
 async function showClassList(chatId) {
   const files = fs.readdirSync(uploadDir).filter((f) => !f.startsWith("."));
   if (!files.length) {
@@ -65,17 +65,17 @@ async function showClassList(chatId) {
     });
   }
 
-  for (let file of files) {
+  const inlineKeyboard = files.map((file) => {
     const className = path.parse(file).name;
-    const inlineButtons = [
-      { text: "Ko‘rish", callback_data: `view_${className}` },
-      { text: "O‘chirish", callback_data: `delete_${className}` },
+    return [
+      { text: `📘 ${className}`, callback_data: `view_${className}` },
+      { text: "❌ O‘chirish", callback_data: `delete_${className}` },
     ];
+  });
 
-    bot.sendMessage(chatId, `📘 ${className}`, {
-      reply_markup: { inline_keyboard: [inlineButtons] },
-    });
-  }
+  bot.sendMessage(chatId, "📋 Sinflar ro‘yxati:", {
+    reply_markup: { inline_keyboard: inlineKeyboard },
+  });
 }
 
 // Express router yaratamiz (webhook uchun)
@@ -89,7 +89,7 @@ adminBotApp.post("/webhook", (req, res) => {
 
 // /start buyrug‘i
 bot.onText(/\/start/, (msg) => {
-  saveUser(msg); // foydalanuvchini saqlash
+  saveUser(msg);
   const chatId = msg.chat.id;
   bot.sendMessage(
     chatId,
@@ -104,7 +104,7 @@ bot.on("message", async (msg) => {
   const text = msg.text;
   const state = adminStates[chatId];
 
-  saveUser(msg); // har safar message kelganda foydalanuvchi saqlansin
+  saveUser(msg);
 
   if (!state) {
     if (text === "Sinf qo'shish") {
@@ -158,8 +158,7 @@ bot.on("message", async (msg) => {
     const file = await bot.getFile(photoId);
     const filePath = file.file_path;
     const url = `https://api.telegram.org/file/bot${token}/${filePath}`;
-    const ext = path.extname(filePath) || ".jpg";
-    const fileName = `${state.className}${ext}`;
+    const fileName = `${state.className}.jpg`; // har doim .jpg formatida
     const savePath = path.join(uploadDir, fileName);
 
     fetch(url)
@@ -194,11 +193,12 @@ bot.on("callback_query", async (query) => {
     const className = data.split("_")[1];
     const files = fs.readdirSync(uploadDir);
     const fileName = files.find((f) => path.parse(f).name === className);
-    if (!fileName)
+    if (!fileName) {
       return bot.sendMessage(
         chatId,
         `❌ ${className} sinfi uchun jadval mavjud emas.`
       );
+    }
 
     const filePath = path.join(uploadDir, fileName);
     bot.sendPhoto(chatId, fs.createReadStream(filePath), {
