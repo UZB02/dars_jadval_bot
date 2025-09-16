@@ -12,10 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const token = process.env.TEACHER_BOT_TOKEN;
-const uploadDir = path.join(
-  __dirname,
-  process.env.TEACHER_UPLOAD_DIR || "teacher_uploads"
-);
+const uploadDir = path.join(__dirname, process.env.TEACHER_UPLOAD_DIR || "teacher_uploads");
 
 // Telegram botni webhook bilan ishga tushiramiz
 const bot = new TelegramBot(token);
@@ -44,13 +41,7 @@ function addOrUpdateTeacher(msg) {
   if (index !== -1) {
     teachers[index] = { chatId, firstName, lastName, lastStart: now };
   } else {
-    teachers.push({
-      chatId,
-      firstName,
-      lastName,
-      joinedAt: now,
-      lastStart: now,
-    });
+    teachers.push({ chatId, firstName, lastName, joinedAt: now, lastStart: now });
   }
 
   fs.writeFileSync(teachersFile, JSON.stringify(teachers, null, 2));
@@ -98,10 +89,7 @@ bot.onText(/\/start/, (msg) => {
 
 // ====== /stats komandasi ======
 bot.onText(/\/stats/, (msg) => {
-  bot.sendMessage(
-    msg.chat.id,
-    `Hozircha o‘qituvchilar soni: ${teachers.length}`
-  );
+  bot.sendMessage(msg.chat.id, `Hozircha o‘qituvchilar soni: ${teachers.length}`);
 });
 
 // ====== Message handler ======
@@ -114,10 +102,7 @@ bot.on("message", (msg) => {
   // Ism familiya qabul qilish
   const teacherName = text.trim();
   if (teacherName.length < 3) {
-    bot.sendMessage(
-      chatId,
-      "❌ To‘liq ism familiya yuboring, masalan: Aliyev Dilshod."
-    );
+    bot.sendMessage(chatId, "❌ To‘liq ism familiya yuboring, masalan: Aliyev Dilshod.");
     return;
   }
 

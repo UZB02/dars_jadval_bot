@@ -10,8 +10,6 @@ dotenv.config();
 
 import { adminBotApp } from "./admin_bot.js";
 import { studentBotApp } from "./student_bot.js";
-import { teacherBotApp } from "./teacher_bot.js";
-
 
 const app = express();
 const PORT = process.env.PORT || 3000;
@@ -23,7 +21,6 @@ app.use(cors()); // CORS ruxsat berish
 // === Bot webhooks ===
 app.use("/admin_bot", adminBotApp);
 app.use("/student_bot", studentBotApp);
-app.use("/teacher_bot", teacherBotApp); 
 
 // === API ===
 app.get("/api/users", (req, res) => {
